@@ -4,7 +4,7 @@ author: Duane Dunston (pair program with Deepseek)
 author_url: https://github.com/thedunston
 git_url: https://github.com/thedunston/openwebui-letta-tool.git
 description: Manage and use Letta within Open Web UI
-version: 0.0.2
+version: 0.0.3
 licence: MIT
 """
 
@@ -152,8 +152,12 @@ class Tools:
             f"{self.valves.AGENT_API_BASE_URL}/v1/agents/{agent_id}/reset-messages"
         )
         print(f"Clearing history for agent: {agent_name}")
+
+        # Add 'add_default_initial_messages': True to the payload
+        reset_payload = {"message_buffer_autoclear": true}
+
         reset_response = await self._send_request(
-            reset_url, {}, "clearing history", method="PATCH"
+            reset_url, reset_payload, "clearing history", method="PATCH"
         )
 
         if reset_response.startswith("{"):
