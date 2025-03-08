@@ -4,19 +4,20 @@ author: Duane Dunston (pair program with Deepseek)
 author_url: https://github.com/thedunston
 git_url: https://github.com/thedunston/openwebui-letta-tool.git
 description: Manage and use Letta within Open Web UI
-version: 0.0.3
+version: 0.0.4
 licence: MIT
 """
 
 """
 Current commands:
 
-agent create AGENTNAME - Creates a new Agent.
-agent list - List current agents.
-agent send AGENTNAME MESSAGE - Sends a message to an Agent and returns the response.
-agent archivemem AGENTNAME - Sends data to archival memory (support multilines).
-agent clearhistory AGENTNAME - Clears the chat history (not memory).
-gent help - This help screen.
+    agent create AGENTNAME - Creates a new Agent.
+    agent list - List current agents.
+    agent send AGENTNAME MESSAGE - Sends a message to an Agent and returns the response.
+    agent archivemem AGENTNAME - Sends data to archival memory (support multilines).
+    agent clearhistory AGENTNAME - Clears the chat history (not memory).
+    agent delete AGENTNAME - Deletes an agent.
+    agent help - This help screen.
 
 The valve AGENT_API_BASE_URL allows specifying a different host where the Letta Server is located.
 
@@ -76,6 +77,12 @@ class Tools:
                         json=payload,
                         timeout=self.valves.TIMEOUT,
                     )
+                elif method == "DELETE":
+                    response = requests.delete(
+                        url,
+                        headers=self.headers,
+                        timeout=self.valves.TIMEOUT,
+                    )
                 else:  # Default to POST
                     response = requests.post(
                         url,
@@ -112,6 +119,69 @@ class Tools:
         )
         print("Agents listed successfully")
         return formatted_agents
+
+    async def delete_agent(self, user_input: str) -> str:
+        """
+        Deletes an agent.
+        """
+        if not user_input.lower().startswith("agent delete"):
+            return json.dumps(
+                {"error": "Invalid command. Use 'agent delete AGENTNAME'."}
+            )
+
+        # Split the command.
+        parts = user_input.split()
+        if len(parts) < 3:
+            return json.dumps(
+                {"error": "Invalid command format. Use 'agent delete AGENTNAME'."}
+            )
+
+        # 2nd field in the index is the agent name.
+        agent_name = parts[2]
+
+        # Fetch the list of agents to resolve the agent ID
+        agents_response = await self.list_agents()
+        if agents_response.startswith("{"):
+            return agents_response
+
+        agents = {}
+        for line in agents_response.split("\n"):
+            if ": " not in line:
+                continue  # Skip malformed lines
+            name, agent_id = line.split(": ")
+            agents[name] = agent_id
+
+        if agent_name not in agents:
+            return json.dumps({"error": f"Agent '{agent_name}' not found."})
+
+        agent_id = agents[agent_name]
+
+        # Send DELETE request to delete the agent
+        delete_url = f"{self.valves.AGENT_API_BASE_URL}/v1/agents/{agent_id}"
+
+        print(f"Deleting Agent: {agent_name}")
+
+        try:
+            # Pass an empty payload and the DELETE method
+            delete_response = await self._send_request(
+                delete_url, {}, "deleting agent", method="DELETE"
+            )
+
+            # Parse the JSON response
+            try:
+                response_data = json.loads(delete_response)
+                if "message" in response_data:
+                    return response_data["message"]  # Return the API's success message
+                else:
+                    return json.dumps(
+                        {"error": "Unexpected response format from the API."}
+                    )
+            except json.JSONDecodeError:
+                return json.dumps({"error": "Invalid JSON response from the API."})
+
+        except Exception as e:
+            print(f"Error deleting agent: {e}")
+            return json.dumps({"error": str(e)})
 
     async def clear_history(self, user_input: str) -> str:
         """
@@ -309,39 +379,47 @@ class Tools:
         except requests.exceptions.RequestException as e:
             return json.dumps({"error": f"Failed to verify memory: {str(e)}"})
 
-        async def create_agent(self, user_input: str) -> str:
-            """
-            Create a new agent by parsing the user input and sending a POST request to the agent API.
-            """
-            if not user_input.lower().startswith("agent create"):
-                return json.dumps(
-                    {"error": "Invalid command. Use 'agent create AGENTNAME'."}
-                )
+    async def create_agent(self, user_input: str) -> str:
+        """
+        Create a new agent by parsing the user input and sending a POST request to the agent API.
+        """
+        if not user_input.lower().startswith("agent create"):
+            return json.dumps(
+                {"error": "Invalid command. Use 'agent create AGENTNAME'."}
+            )
 
-            agent_name = user_input[len("agent create ") :].strip()
-            if not agent_name:
-                return json.dumps({"error": "Agent name cannot be empty."})
+        agent_name = user_input[len("agent create ") :].strip()
+        if not agent_name:
+            return json.dumps({"error": "Agent name cannot be empty."})
 
-            url = f"{self.valves.AGENT_API_BASE_URL}/v1/agents/"
-            payload = {
-                "name": agent_name,
-                "model": "letta/letta-free",
-                "embedding": "letta/letta-free",
-            }
+        url = f"{self.valves.AGENT_API_BASE_URL}/v1/agents/"
+        payload = {
+            "name": agent_name,
+            "model": "letta/letta-free",
+            "embedding": "letta/letta-free",
+        }
 
-            print(f"Creating agent: {agent_name}")
-            result = await self._send_request(url, payload, "Creating agent")
+        print(f"Creating agent: {agent_name}")
+        result = await self._send_request(url, payload, "Creating agent")
 
-            # Check if the agent was created successfully
-            if result.startswith("{"):
-                return result  # Return the error if the request failed
+        # Check if the agent was created successfully
+        if result.startswith("{"):
+            return result  # Return the error if the request failed
 
-            # If successful, list all agents to confirm the new agent is added
-            agents_list = await self.list_agents()
-            return f"Agent '{agent_name}' created successfully.\nUpdated list of agents:\n{agents_list}"
+        # If successful, list all agents to confirm the new agent is added
+        agents_list = await self.list_agents()
+        return f"Agent '{agent_name}' created successfully.\nUpdated list of agents:\n{agents_list}"
 
     async def help_agent(self):
-        return f"agent create AGENTNAME - Creates a new Agent.\nagent list - List current agents.\nagent send AGENTNAME MESSAGE - Sends a message to an Agent and returns the response.\nagent archivemem AGENTNAME - Sends data to archival memory (support multilines).\nagent clearhistory AGENTNAME - Clears the chat history (not memory).\nagent help - This help screen.\n"
+        return f"""
+                agent create AGENTNAME - Creates a new Agent.
+                agent list - List current agents.
+                agent send AGENTNAME MESSAGE - Sends a message to an Agent and returns the response.
+                agent archivemem AGENTNAME - Sends data to archival memory (support multilines).
+                agent clearhistory AGENTNAME - Clears the chat history (not memory).
+                agent delete AGENTNAME - Deletes an agent.
+                agent help - This help screen.
+                """
 
     # Add new commands below in command_map.
     async def handle_command(
@@ -371,6 +449,7 @@ class Tools:
             "agent send": self.send_message,
             "agent archivemem": self.send_archivemem,
             "agent clearhistory": self.clear_history,
+            "agent delete": self.delete_agent,
             "agent help": self.help_agent,
         }
 
