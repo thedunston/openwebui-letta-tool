@@ -2,7 +2,7 @@
 
 Status: Actively supported.
 
-Tool to manage a [Letaa](https://www.letta.com/) (formerly MemGPT) server and agents
+Tool to manage a [Letta](https://www.letta.com/) (formerly MemGPT) server and agents
 
 I enrolled in the course at [DeepLearning.ai](https://DeepLearning.ai) on [LLMs as Operating Systems: Agent Memory](https://www.deeplearning.ai/short-courses/llms-as-operating-systems-agent-memory/) and thought this was a real project. The course helped me understand 'MemGPT' and a few of its practical applications.
 
