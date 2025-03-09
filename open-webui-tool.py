@@ -15,7 +15,6 @@ Current commands:
     agent list - List current agents.
     agent send AGENTNAME MESSAGE - Sends a message to an Agent and returns the response.
     agent archivemem AGENTNAME - Sends data to archival memory (support multilines).
-    agent clearhistory AGENTNAME - Clears the chat history (not memory).
     agent delete AGENTNAME - Deletes an agent.
     agent help - This help screen.
 
@@ -243,75 +242,6 @@ class Tools:
             print(f"Error deleting agent: {e}")
             return json.dumps({"error": str(e)})
 
-    async def clear_history(self, user_input: str) -> str:
-        """
-        Clear the message history for a specific agent and verify the operation.
-        """
-        if not user_input.lower().startswith("agent clearhistory"):
-            return json.dumps(
-                {"error": "Invalid command. Use 'agent clearhistory AGENTNAME'."}
-            )
-
-        # Split the command.
-        parts = user_input.split()
-        if len(parts) < 3:
-            return json.dumps(
-                {"error": "Invalid command format. Use 'agent clearhistory AGENTNAME'."}
-            )
-
-        # 2 field in the index is the agent name.
-        agent_name = parts[2]
-
-        # Fetch the list of agents to resolve the agent ID
-        agents_response = await self.list_agents()
-        if agents_response.startswith("{"):
-            return agents_response
-
-        agents = {}
-        for line in agents_response.split("\n"):
-            name, agent_id = line.split(": ")
-            agents[name] = agent_id
-
-        if agent_name not in agents:
-            return json.dumps({"error": f"Agent '{agent_name}' not found."})
-
-        agent_id = agents[agent_name]
-
-        # Step 1: Send PATCH request to reset messages
-        reset_url = (
-            f"{self.valves.AGENT_API_BASE_URL}/v1/agents/{agent_id}/reset-messages"
-        )
-        print(f"Clearing history for agent: {agent_name}")
-
-        # Add 'add_default_initial_messages': True to the payload
-        reset_payload = {"message_buffer_autoclear": true}
-
-        reset_response = await self._send_request(
-            reset_url, reset_payload, "clearing history", method="PATCH"
-        )
-
-        if reset_response.startswith("{"):
-            return reset_response  # Return the error if the request failed
-
-        # Step 2: Send GET request to verify the message count
-        messages_url = f"{self.valves.AGENT_API_BASE_URL}/v1/agents/{agent_id}/messages"
-        print(f"Verifying message count for agent: {agent_name}")
-        messages_response = await self._send_request(
-            messages_url, {}, "fetching messages", method="GET"
-        )
-
-        if messages_response.startswith("{"):
-            return messages_response  # Return the error if the request failed
-
-        # Parse the messages response
-        messages_data = json.loads(messages_response)
-        message_count = len(messages_data.get("messages", []))
-
-        if message_count == 1:
-            return f"Message history cleared successfully for agent '{agent_name}'. Current message count: {message_count}."
-        else:
-            return f"Failed to clear message history for agent '{agent_name}'. Current message count: {message_count}."
-
     async def send_message(
         self,
         user_input: str,
@@ -488,7 +418,7 @@ class Tools:
             "project_id": None,
             "template_id": None,
             "identity_ids": [],
-            "message_buffer_autoclear": False,
+            "message_buffer_autoclear": True,
         }
 
         print(f"Creating agent: {agent_name}")
@@ -521,7 +451,6 @@ class Tools:
                 agent list - List current agents.
                 agent send AGENTNAME MESSAGE - Sends a message to an Agent and returns the response.
                 agent archivemem AGENTNAME - Sends data to archival memory (support multilines).
-                agent clearhistory AGENTNAME - Clears the chat history (not memory).
                 agent delete AGENTNAME - Deletes an agent.
                 agent help - This help screen.
                 """
@@ -553,7 +482,6 @@ class Tools:
             "agent list": self.list_agents,
             "agent send": self.send_message,
             "agent archivemem": self.send_archivemem,
-            "agent clearhistory": self.clear_history,
             "agent delete": self.delete_agent,
             "agent help": self.help_agent,
         }
