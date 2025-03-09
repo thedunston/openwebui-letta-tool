@@ -418,7 +418,7 @@ class Tools:
             "project_id": None,
             "template_id": None,
             "identity_ids": [],
-            "message_buffer_autoclear": True,
+            "message_buffer_autoclear": False,
         }
 
         print(f"Creating agent: {agent_name}")
